@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Ding - Serverless Email Tracker
+  
+  SAM Template for deploying the Java Lambda, API Gateway and DynamoDB.
+
+Globals:
+  Function:
+    Timeout: 20
+    MemorySize: 512
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref TrackingTable
+
+Resources:
+  TrackingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/email-tracker-aws-1.0-SNAPSHOT.jar
+      Handler: com.lucumango.ding.handler.TrackingHandler::handleRequest
+      Runtime: java21
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TrackingTable
+      Events:
+        TrackingEndpoint:
+          Type: Api
+          Properties:
+            Path: /track/{id}
+            Method: get
+
+  TrackingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: EmailTrackingEvents
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: trackingId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: TrackingIdIndex
+          KeySchema:
+            - AttributeName: trackingId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  TrackingApi:
+    Description: "API Gateway endpoint URL to track emails"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/track/"
+  TrackingFunctionRole:
+    Description: "Implicit IAM Role created for Tracking function"
+    Value: !GetAtt TrackingFunctionRole.Arn
